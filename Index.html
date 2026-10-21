@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+      label { font-weight: bold; margin-top: 10px; display: block; }
+      select, input { display: block; width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box; }
+      button { padding: 12px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; width: 100%; font-size: 16px; }
+      button:hover { background-color: #45a049; }
+      button:disabled { background-color: #cccccc; cursor: not-allowed; }
+      #status { margin-top: 15px; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+
+    <h2>Form Upload Dokumen</h2>
+    <div style="text-align: right; margin-bottom: 20px;">
+      <a href="<?= getScriptUrl() ?>?page=Dashboard" style="color: #2196F3; text-decoration: none; font-weight: bold;">Lihat Daftar File (Dashboard)</a>
+    </div>
+    
+    <!-- DROPDOWN 1 -->
+    <label>1. Pilih Klaster:</label>
+    <select id="klasterSelect" onchange="updateSubFolder()">
+      <option value="">-- Memuat Klaster... --</option>
+    </select>
+
+    <!-- DROPDOWN 2 -->
+    <label>2. Pilih Jenis Dokumen:</label>
+    <select id="subFolderSelect" onchange="updateSubSubFolder()" disabled>
+      <option value="">-- Pilih Klaster Terlebih Dahulu --</option>
+    </select>
+
+    <!-- DROPDOWN 3 (BARU) -->
+    <label>3. Pilih Sub-Sub Folder (Opsional):</label>
+    <select id="subSubFolderSelect" disabled>
+      <option value="">-- (Opsional) Biarkan kosong jika tidak ada --</option>
+    </select>
+
+    <label>4. Pilih File (Bisa lebih dari satu):</label>
+    <input type="file" id="fileData" multiple>
+
+    <button type="button" id="btnUpload" onclick="kirimData()">Upload Sekarang</button>
+    <p id="status"></p>
+
+    <script>
+      // Variabel global untuk menyimpan Peta
+      let globalSubFolderMap = {};
+
+      window.onload = function() {
+        google.script.run
+          .withSuccessHandler(initDropdowns)
+          .withFailureHandler(function(err) { console.error(err); })
+          .getMasterFolderData();
+      };
+
+      // 1. ISI DROPDOWN 1
+      function initDropdowns(data) {
+        globalSubFolderMap = data.subFolderMap; 
+        var klasterSelect = document.getElementById('klasterSelect');
+        klasterSelect.innerHTML = '<option value="">-- Pilih Klaster --</option>';
+        
+        data.klasterList.forEach(function(klaster) {
+          var option = document.createElement('option');
+          option.value = klaster;
+          option.text = klaster;
+          klasterSelect.appendChild(option);
+        });
+      }
+
+      // 2. UPDATE DROPDOWN 2 SAAT KLASTER DIPILIH
+      function updateSubFolder() {
+        var klaster = document.getElementById('klasterSelect').value;
+        var subSelect = document.getElementById('subFolderSelect');
+        var subSubSelect = document.getElementById('subSubFolderSelect');
+        
+        // Reset Dropdown 2 & 3
+        subSelect.innerHTML = '<option value="">-- Pilih Jenis Dokumen --</option>';
+        subSubSelect.innerHTML = '<option value="">-- (Opsional) Biarkan kosong jika tidak ada --</option>';
+        subSubSelect.disabled = true;
+        
+        if (klaster && globalSubFolderMap[klaster]) {
+          subSelect.disabled = false; 
+          
+          // Ambil daftar Sub Folder (Keys dari object)
+          var daftarSub = Object.keys(globalSubFolderMap[klaster]);
+          
+          daftarSub.forEach(function(sub) {
+            var option = document.createElement('option');
+            option.value = sub;
+            option.text = sub;
+            subSelect.appendChild(option);
+          });
+        } else {
+          subSelect.disabled = true; 
+        }
+      }
+
+      // 3. UPDATE DROPDOWN 3 SAAT SUB FOLDER DIPILIH
+      function updateSubSubFolder() {
+        var klaster = document.getElementById('klasterSelect').value;
+        var subFolder = document.getElementById('subFolderSelect').value;
+        var subSubSelect = document.getElementById('subSubFolderSelect');
+        
+        // Reset Dropdown 3
+        subSubSelect.innerHTML = '<option value="">-- (Opsional) Biarkan kosong jika tidak ada --</option>';
+        
+        if (klaster && subFolder && globalSubFolderMap[klaster][subFolder]) {
+          var daftarSubSub = globalSubFolderMap[klaster][subFolder];
+          
+          // Jika ada isinya, aktifkan dropdown 3
+          if (daftarSubSub.length > 0) {
+            subSubSelect.disabled = false;
+            daftarSubSub.forEach(function(subSub) {
+              var option = document.createElement('option');
+              option.value = subSub;
+              option.text = subSub;
+              subSubSelect.appendChild(option);
+            });
+          } else {
+            // Jika tidak ada sub-sub folder di spreadsheet, biarkan mati
+            subSubSelect.disabled = true; 
+          }
+        } else {
+          subSubSelect.disabled = true;
+        }
+      }
+
+      // 4. KIRIM DATA
+      function kirimData() {
+        var klaster = document.getElementById('klasterSelect').value;
+        var subFolder = document.getElementById('subFolderSelect').value;
+        var subSubFolder = document.getElementById('subSubFolderSelect').value;
+        var fileInput = document.getElementById('fileData');
+        var files = fileInput.files; 
+
+        // Validasi (SubSubFolder tidak wajib diisi)
+        if (!klaster || !subFolder || files.length === 0) {
+          tampilkanStatus("⚠️ Mohon lengkapi Klaster, Jenis Dokumen, dan pilih minimal 1 file!", "red");
+          return;
+        }
+
+        // GABUNGKAN MENJADI PATH
+        var namaFolderTujuan = klaster + "/" + subFolder; 
+        
+        // Jika Dropdown 3 dipilih (tidak kosong), tambahkan ke path
+        if (subSubFolder !== "") {
+          namaFolderTujuan += "/" + subSubFolder;
+        }
+        
+        var btn = document.getElementById('btnUpload');
+        btn.disabled = true;
+
+        prosesAntreanUpload(files, namaFolderTujuan);
+      }
+
+      // 5. PROSES ANTREAN UPLOAD (Sama seperti sebelumnya)
+      function prosesAntreanUpload(files, folderTujuan) {
+        var indexFile = 0;
+        var totalFile = files.length;
+        var berhasil = 0;
+        var gagal = 0;
+
+        function uploadBerikutnya() {
+          if (indexFile >= totalFile) {
+            var pesanAkhir = `✅ Selesai! Berhasil: ${berhasil}, Gagal: ${gagal}`;
+            tampilkanStatus(pesanAkhir, berhasil > 0 ? "green" : "red");
+            document.getElementById('btnUpload').disabled = false;
+            document.getElementById('fileData').value = ""; 
+            return;
+          }
+
+          var file = files[indexFile];
+          tampilkanStatus(`⏳ Mengupload (${indexFile + 1}/${totalFile}): ${file.name}`, "blue");
+
+          var reader = new FileReader();
+          
+          reader.onload = function(e) {
+            google.script.run
+              .withSuccessHandler(function(response) {
+                if (response.indexOf("SUKSES") !== -1) { berhasil++; } else { gagal++; }
+                indexFile++;
+                uploadBerikutnya(); 
+              })
+              .withFailureHandler(function(error) {
+                gagal++;
+                indexFile++;
+                uploadBerikutnya(); 
+              })
+              .uploadFileDariWeb(folderTujuan, file.name, e.target.result);
+          };
+          
+          reader.readAsDataURL(file);
+        }
+        uploadBerikutnya();
+      }
+
+      function tampilkanStatus(teks, warna) {
+        var statusEl = document.getElementById('status');
+        statusEl.innerText = teks;
+        statusEl.style.color = warna;
+      }
+    </script>
+  </body>
+</html>

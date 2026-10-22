@@ -1,0 +1,174 @@
+<!-- LogikaForm.html -->
+<script>
+  let masterData = [];
+
+  document.addEventListener("DOMContentLoaded", function() {
+    google.script.run.withSuccessHandler(function(data) {
+      masterData = data || [];
+      const firstDrop = document.getElementById('drop_0');
+      if (masterData.length === 0) {
+        firstDrop.innerHTML = '<option value="">-- Data master_folder kosong --</option>';
+        return;
+      }
+      populateDropdown(0, getUniqueOptions(0, []));
+    }).getFolderStructure();
+  });
+
+  document.getElementById("currentYearForm").textContent = new Date().getFullYear();
+
+  function getUniqueOptions(level, selectedPath) {
+    let options = new Set();
+    masterData.forEach(row => {
+      if (!row || row.length <= level) return;
+      let match = true;
+      for (let i = 0; i < level; i++) {
+        if (String(row[i]).trim() !== String(selectedPath[i]).trim()) {
+          match = false;
+          break;
+        }
+      }
+      if (match && row[level]) {
+        let val = String(row[level]).trim();
+        if (val !== "") options.add(val);
+      }
+    });
+    return Array.from(options);
+  }
+
+  function populateDropdown(level, options) {
+    const select = document.getElementById(`drop_${level}`);
+    if (!select) return;
+    select.innerHTML = level === 0 ? `<option value="">-- Pilih Induk/Tahun --</option>` : `<option value="">-- Pilih Sub Folder --</option>`;
+    options.forEach(opt => {
+      let el = document.createElement("option");
+      el.value = opt;
+      el.textContent = opt;
+      select.appendChild(el);
+    });
+  }
+
+  function onDropdownChange(level) {
+    let selectedPath = [];
+    for (let i = 0; i <= level; i++) {
+      selectedPath.push(document.getElementById(`drop_${i}`).value);
+    }
+    for (let i = level + 1; i < 5; i++) {
+      const group = document.getElementById(`group_${i}`);
+      const drop = document.getElementById(`drop_${i}`);
+      if (group && drop) {
+        group.classList.add("hidden-dropdown");
+        drop.innerHTML = "";
+        drop.value = "";
+      }
+    }
+    if (!document.getElementById(`drop_${level}`).value) return;
+    if (level + 1 < 5) {
+      let nextOptions = getUniqueOptions(level + 1, selectedPath);
+      if (nextOptions && nextOptions.length > 0) {
+        populateDropdown(level + 1, nextOptions);
+        document.getElementById(`group_${level + 1}`).classList.remove("hidden-dropdown");
+      }
+    }
+  }
+
+  function handleFormSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btnSubmit");
+    const status = document.getElementById("statusMessage");
+    const fileInput = document.getElementById("fileFiles");
+    
+    const progressContainer = document.getElementById("uploadProgressContainer");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+    const progressPercentage = document.getElementById("progressPercentage");
+    
+    const files = fileInput.files;
+    if (files.length === 0) return;
+    
+    let totalSize = 0;
+    for (let i = 0; i < files.length; i++) {
+      totalSize += files[i].size;
+    }
+    
+    if (totalSize > 15728640) {
+      status.style.display = "block";
+      status.className = "text-danger";
+      status.innerText = "❌ Gagal: Total file melebihi batas 15MB!";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Proses Unggah Berjalan...";
+    status.style.display = "none";
+    
+    progressContainer.style.display = "block";
+    progressBar.style.width = "0%";
+    progressPercentage.innerText = "0%";
+    progressText.innerText = "Menyiapkan enkripsi data aman...";
+
+    let pathArray = [];
+    for(let i = 0; i < 5; i++) {
+      let el = document.getElementById(`drop_${i}`);
+      if(el && el.value) pathArray.push(el.value);
+    }
+
+    let totalFiles = files.length;
+    let filesUploadedSuccessfully = 0;
+
+    function uploadNextFile(index) {
+      if (index >= totalFiles) {
+        btn.disabled = false;
+        btn.innerText = "Mulai Unggah Berkas";
+        
+        progressText.innerText = "🎉 Semua berkas berhasil dimasukkan ke Drive & Sheet.";
+        document.getElementById("uploadForm").reset();
+        onDropdownChange(0);
+        
+        setTimeout(() => {
+          progressContainer.style.display = "none";
+        }, 4000);
+        return;
+      }
+
+      let file = files[index];
+      progressText.innerText = `Mengunggah ${index + 1} dari ${totalFiles} berkas: (${file.name})...`;
+
+      let reader = new FileReader();
+      reader.onload = function(evt) {
+        let singleFileData = [{ base64: evt.target.result, type: file.type, name: file.name }];
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res.success) {
+              filesUploadedSuccessfully++;
+              
+              let percentValue = Math.round((filesUploadedSuccessfully / totalFiles) * 100);
+              progressBar.style.width = percentValue + "%";
+              progressPercentage.innerText = percentValue + "%";
+              
+              uploadNextFile(index + 1);
+            } else {
+              btn.disabled = false;
+              btn.innerText = "Mulai Unggah Berkas";
+              progressText.innerText = "❌ Terjadi kesalahan sistem internal.";
+              status.style.display = "block";
+              status.className = "text-danger";
+              status.innerText = "Gagal pada file " + file.name + ": " + res.message;
+            }
+          })
+          .withFailureHandler(function(err) {
+            btn.disabled = false;
+            btn.innerText = "Mulai Unggah Berkas";
+            progressText.innerText = "❌ Koneksi Cloud Terputus.";
+            status.style.display = "block";
+            status.className = "text-danger";
+            status.innerText = "Error: " + err;
+          })
+          .uploadMultipleFiles(singleFileData, pathArray);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    uploadNextFile(0);
+  }
+</script>

@@ -1,0 +1,301 @@
+<script>
+  let rawLogs = [];
+  let filteredLogs = [];
+  let selectedCapsules = [];
+  
+  let currentPage = 1;
+  const rowsPerPage = 10;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    loadDashboardData();
+    loadFilterDropdownOptions();
+  });
+
+  document.getElementById("currentYearDash").textContent = new Date().getFullYear();
+
+
+  function loadDashboardData() {
+    google.script.run.withSuccessHandler(function(data) {
+      rawLogs = data || [];
+      filteredLogs = [...rawLogs];
+      renderTable();
+    }).getUploadLogs();
+  }
+
+  // DISESUAIKAN: Mengisi elemen datalist untuk fitur ketik + autocomplete
+    // 1. Tambahkan variabel global ini di baris paling atas Logika.html (di bawah let selectedCapsules = [];)
+  let allUniqueFolders = []; 
+
+  // 2. Perbarui fungsi loadFilterDropdownOptions menjadi seperti ini:
+  function loadFilterDropdownOptions() {
+    google.script.run.withSuccessHandler(function(data) {
+      let uniqueFolders = new Set();
+      (data || []).forEach(row => {
+        if (!row) return;
+        for(let i = 0; i < 5; i++) {
+          if(row[i]) {
+            let cleanVal = String(row[i]).trim();
+            if (cleanVal !== "") uniqueFolders.add(cleanVal);
+          }
+        }
+      });
+      
+      // Simpan daftar asli ke variabel global agar bisa dipakai berulang kali
+      allUniqueFolders = Array.from(uniqueFolders);
+      
+      // Render pilihan untuk pertama kali
+      renderDatalistOptions();
+    }).getFolderStructure();
+  }
+
+  // 3. Tambahkan fungsi pembantu baru ini untuk mencetak opsi ke HTML
+  function renderDatalistOptions() {
+    const datalist = document.getElementById("folderOptions");
+    if(!datalist) return;
+    
+    datalist.innerHTML = ""; // Kosongkan daftar lama
+    
+    // Hanya tampilkan folder yang BELUM ada di dalam array selectedCapsules
+    allUniqueFolders.forEach(folder => {
+      if (!selectedCapsules.includes(folder)) {
+        let opt = document.createElement("option");
+        opt.value = folder;
+        datalist.appendChild(opt);
+      }
+    });
+  }
+
+
+  // BARU: Memeriksa input ketikan secara real-time
+    function checkDatalistSelection() {
+    const input = document.getElementById("filterDropdown");
+    const datalist = document.getElementById("folderOptions");
+    if (!input || !datalist) return;
+
+    const val = input.value.trim();
+    
+    for (let i = 0; i < datalist.options.length; i++) {
+      if (val === datalist.options[i].value) {
+        addCapsuleFilter(val); 
+        input.value = "";      // Kosongkan kolom teks
+        input.blur();          // BARU: Lepas fokus sejenak agar daftar pop-up browser menutup total
+        input.focus();         // BARU: Kembalikan fokus agar siap mengetik folder berikutnya
+        break;
+      }
+    }
+  }
+
+
+  // DISESUAIKAN: Menerima parameter string teks folder langsung dari input ketik
+  function addCapsuleFilter(val) {
+    if (!val || selectedCapsules.includes(val)) {
+      return;
+    }
+    
+    selectedCapsules.push(val);
+    
+    renderCapsules();
+    processFilterChange();
+  }
+
+    function renderCapsules() {
+    const container = document.getElementById("capsuleContainer");
+    if(!container) return;
+    container.innerHTML = "";
+    
+    selectedCapsules.forEach(capsule => {
+      let span = document.createElement("span");
+      span.className = "capsule-tag";
+      span.innerHTML = `${capsule} <button class="btn-close-custom" onclick="removeCapsule('${capsule}')">×</button>`;
+      container.appendChild(span);
+    });
+
+    // BARU: Picu pembaruan daftar ketikan agar folder yang terpilih langsung hilang dari list
+    renderDatalistOptions(); 
+  }
+
+    // Perbarui fungsi removeCapsule lama Anda dengan kode ini
+  function removeCapsule(val) {
+    // 1. Hapus folder dari daftar kapsul terpilih
+    selectedCapsules = selectedCapsules.filter(item => item !== val);
+    
+    // 2. Gambar ulang kapsul yang tersisa
+    renderCapsules();
+    
+    // 3. Jalankan ulang filter data tabel
+    processFilterChange();
+    
+    // 4. BARU: Paksa daftar rekomendasi ketikan untuk memuat ulang 
+    // agar folder yang baru dihapus muncul lagi di dalam list pilihan
+    renderDatalistOptions(); 
+  }
+
+
+
+  function clearAllCapsules() {
+    selectedCapsules = [];
+    renderCapsules();
+    processFilterChange();
+  }
+
+  function renderCapsules() {
+    const container = document.getElementById("capsuleContainer");
+    if(!container) return;
+    container.innerHTML = "";
+    
+    selectedCapsules.forEach(capsule => {
+      let span = document.createElement("span");
+      span.className = "capsule-tag";
+      span.innerHTML = `${capsule} <button class="btn-close-custom" onclick="removeCapsule('${capsule}')">×</button>`;
+      container.appendChild(span);
+    });
+  }
+
+    function processFilterChange() {
+    const searchInput = document.getElementById("searchFileName");
+    const textSearch = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    
+    filteredLogs = rawLogs.filter(row => {
+      if(!row) return false;
+      
+      // 1. Filter Kapsul (Mencocokkan jalur folder tujuan)
+      let matchCapsule = true;
+      if (selectedCapsules.length > 0) {
+        const targetPath = String(row.folderPath || "").toLowerCase();
+        matchCapsule = selectedCapsules.every(capsule => targetPath.includes(capsule.toLowerCase()));
+      }
+      
+      // 2. Filter Pencarian Nama File
+      let matchText = true;
+      if (textSearch) {
+        const targetName = String(row.fileName || "").toLowerCase();
+        matchText = targetName.includes(textSearch);
+      }
+      
+      return matchCapsule && matchText;
+    });
+
+    // BARU: Perbarui teks kotak informasi total berkas sesuai hasil filter aktif
+    const totalBadge = document.getElementById("totalFilesBadge");
+    if (totalBadge) {
+      totalBadge.innerText = `📊 Total: ${filteredLogs.length} Berkas`;
+    }
+    
+    currentPage = 1; 
+    renderTable();
+  }
+
+
+    function renderTable() {
+    const tbody = document.getElementById("logTableBody");
+    if(!tbody) return;
+    tbody.innerHTML = "";
+    
+    if (filteredLogs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-muted" style="text-align: center; padding: 20px; color: #64748b;">Tidak ditemukan log data berkas yang cocok.</td></tr>`;
+      updatePaginationControls(0);
+      return;
+    }
+    
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = Math.min(startIndex + rowsPerPage, filteredLogs.length);
+    const paginatedItems = filteredLogs.slice(startIndex, endIndex);
+    
+    paginatedItems.forEach(item => {
+      let tr = document.createElement("tr");
+      let urlFile = item.fileUrl || '#';
+      let targetAttr = item.fileUrl ? 'target="_blank"' : '';
+      
+      // Mengambil nilai ukuran file, jika kosong atau undefined tampilkan tanda strip (-)
+      let displaySize = item.fileSize || '-'; 
+      
+      // MODIFIKASI: Menambahkan kolom \${displaySize} ke dalam struktur baris tabel (kolom ke-4)
+      tr.innerHTML = `
+        <td class="text-muted small">${item.no}</td>
+        <td class="small" style="white-space: nowrap;">${item.timestamp || '-'}</td>
+        <td class="fw-semibold text-break">${item.fileName || 'Tanpa Nama'}</td>
+        <td class="small" style="color: #64748b; white-space: nowrap;">${displaySize}</td>
+        <td><span class="badge bg-light text-dark border text-wrap text-start">${item.folderPath || '-'}</span></td>
+        <td>
+          <div style="display: flex !important; gap: 8px !important; justify-content: center !important; align-items: center !important;">
+            <a href="${urlFile}" ${targetAttr} style="padding: 5px 12px !important; font-size: 13px !important; font-weight: 500 !important; cursor: pointer !important; text-decoration: none !important; color: #2563eb !important; background-color: #ffffff !important; border: 1px solid #bfdbfe !important; border-radius: 6px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; height: 32px !important; box-sizing: border-box !important;" onmouseover="this.style.backgroundColor='#eff6ff'" onmouseout="this.style.backgroundColor='#ffffff'">
+              📂 Buka
+            </a>
+            <button onclick="copyFileLink('${urlFile}', this)" style="padding: 5px 12px !important; font-size: 13px !important; font-weight: 500 !important; cursor: pointer !important; color: #475569 !important; background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; border-radius: 6px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; height: 32px !important; box-sizing: border-box !important;" title="Salin Tautan Berkas" onmouseover="this.style.backgroundColor='#f8fafc'" onmouseout="this.style.backgroundColor='#ffffff'">
+              📋 Copy
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    
+    // Perbarui badge total berkas saat data pertama kali dimuat penuh
+    const totalBadge = document.getElementById("totalFilesBadge");
+    if (totalBadge && currentPage === 1) {
+      totalBadge.innerText = `📊 Total: ${filteredLogs.length} Berkas`;
+    }
+    
+    updatePaginationControls(filteredLogs.length, startIndex + 1, endIndex);
+  }
+
+
+
+
+
+
+  function updatePaginationControls(totalItems, start = 0, end = 0) {
+    const totalPages = Math.ceil(totalItems / rowsPerPage);
+    const info = document.getElementById("paginationInfo");
+    if(info) info.innerText = `Menampilkan ${start}-${end} dari ${totalItems} data`;
+    
+    const prev = document.getElementById("btnPrev");
+    const next = document.getElementById("btnNext");
+    
+    if(prev) prev.classList.toggle("disabled", currentPage === 1);
+    if(next) next.classList.toggle("disabled", currentPage === totalPages || totalPages === 0);
+  }
+
+  function changePage(direction) {
+    const totalPages = Math.ceil(filteredLogs.length / rowsPerPage);
+    const newPage = currentPage + direction;
+    if (newPage >= 1 && newPage <= totalPages) {
+      currentPage = newPage;
+      renderTable();
+    }
+  }
+
+  // BARU: Fungsi untuk menyalin tautan Google Drive dan memberikan notifikasi visual
+    function copyFileLink(url, element) {
+    if (!url || url === '#') {
+      alert("Tautan file tidak tersedia!");
+      return;
+    }
+
+    navigator.clipboard.writeText(url).then(function() {
+      const originalHtml = element.innerHTML;
+      // Mengubah teks menjadi sukses
+      element.innerHTML = "✅ Tersalin!";
+      element.style.color = "#10b981"; 
+      element.disabled = true;
+
+      setTimeout(function() {
+        element.innerHTML = originalHtml; // Kembali menjadi 📋 Copy
+        element.style.color = "";
+        element.disabled = false;
+      }, 1500);
+    }).catch(function(err) {
+      // Cadangan browser lama
+      const tempInput = document.createElement("input");
+      tempInput.value = url;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand("copy");
+      document.body.removeChild(tempInput);
+      alert("Tautan berhasil disalin!");
+    });
+  }
+
+  
+  
+</script>

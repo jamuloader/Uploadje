@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <base target="_top">
+  <!-- Panggil File CSS Terpisah -->
+  <?!= include('StylingForm'); ?>
+</head>
+<body>
+
+  <div class="form-container">
+    <div class="header-area">
+      <h3>Formulir Upload File</h3>
+      <a href="<?= ScriptApp.getService().getUrl() ?>?page=dashboard" class="btn-back">⬅️ Dashboard</a>
+    </div>
+    
+    <div class="alert-info-box">
+      <strong>Batas Maksimal Aman:</strong> Anda dapat mengunggah banyak file sekaligus dengan total ukuran gabungan berkas maksimal <strong>15MB</strong>.
+    </div>
+
+    <form id="uploadForm" onsubmit="handleFormSubmit(event)">
+      <div id="dropdownContainer">
+        <div class="dropdown-group" id="group_0">
+          <label class="form-label">Folder Induk (Wajib)</label>
+          <select class="form-select" id="drop_0" required onchange="onDropdownChange(0)">
+            <option value="">-- Memuat Pilihan Induk... --</option>
+          </select>
+        </div>
+        <div class="dropdown-group hidden-dropdown" id="group_1">
+          <label class="form-label">Sub Folder Tingkat 1 (Opsional)</label>
+          <select class="form-select" id="drop_1" onchange="onDropdownChange(1)"></select>
+        </div>
+        <div class="dropdown-group hidden-dropdown" id="group_2">
+          <label class="form-label">Sub Folder Tingkat 2 (Opsional)</label>
+          <select class="form-select" id="drop_2" onchange="onDropdownChange(2)"></select>
+        </div>
+        <div class="dropdown-group hidden-dropdown" id="group_3">
+          <label class="form-label">Sub Folder Tingkat 3 (Opsional)</label>
+          <select class="form-select" id="drop_3" onchange="onDropdownChange(3)"></select>
+        </div>
+        <div class="dropdown-group hidden-dropdown" id="group_4">
+          <label class="form-label">Sub Folder Tingkat 4 (Opsional)</label>
+          <select class="form-select" id="drop_4" onchange="onDropdownChange(4)"></select>
+        </div>
+      </div>
+
+      <div class="dropdown-group">
+        <label class="form-label">Pilih Dokumen/Berkas</label>
+        <input type="file" class="form-control" id="fileFiles" multiple required>
+      </div>
+
+      <!-- Wadah Utama Progress Bar -->
+      <div id="uploadProgressContainer" style="display: none; margin: 20px 0; padding: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; font-weight: 500; color: #334155;">
+          <span id="progressText">Menyiapkan unggahan...</span>
+          <span id="progressPercentage">0%</span>
+        </div>
+        <div style="width: 100%; background-color: #e2e8f0; border-radius: 9999px; height: 10px; overflow: hidden;">
+          <div id="progressBar" style="width: 0%; background-color: #3b82f6; height: 100%; transition: width 0.3s ease;"></div>
+        </div>
+      </div>
+
+      <button type="submit" id="btnSubmit" class="btn-submit">Mulai Unggah Berkas</button>
+    </form>
+    
+    <div id="statusMessage" style="display:none; margin-top: 15px;"></div>
+    
+    <!-- Footer Tambahan -->
+    <footer class="site-footer">
+      IT Support Puskesmas Kedawung @<span id="currentYearForm"></span>
+    </footer>
+  </div>
+
+  <!-- Memanggil File Logika Terpisah -->
+  <?!= include('LogikaForm'); ?>
+
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <!-- Panggil File CSS Dashboard Terpisah -->
+  <?!= include('StylingDashboard'); ?>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Top Header -->
+        <!-- Top Header -->
+    <div class="dashboard-header">
+      <div class="header-brand-container">
+        <!-- Menggunakan Direct Link dari ID file Google Drive Anda -->
+        <img src="https://drive.google.com/thumbnail?id=1fNfhdjmHK6FcqGByczlzBs9pgum1D408&sz=w400" alt="Logo Puskesmas Kedawung" class="header-logo">
+        <div class="header-title">
+          <h2>Bank Data Puskesmas Kedawung</h2>
+          <p>Data Laporan Puskesmas Kedawung</p>
+        </div>
+      </div>
+      <a href="<?= ScriptApp.getService().getUrl() ?>?page=form" class="btn-upload">Formulir Upload</a>
+    </div>
+
+
+
+    <!-- Main Dynamic Workspace -->
+    <div class="main-grid">
+      <!-- SIDEBAR FILTER KAPSUL -->
+            <!-- SIDEBAR FILTER KAPSUL -->
+      <div class="card-filter">
+        <h5>Filter berdasarkan Folder</h5>
+        
+        <label class="form-label">Ketik Nama Folder</label>
+        <!-- Mengubah select menjadi input text dengan autocomplete datalist -->
+        <!-- Perbarui bagian input ini di dashboard.html -->
+<input type="text" class="form-control" id="filterDropdown" list="folderOptions" autocomplete="off" placeholder="Ketik/pilih folder..." oninput="checkDatalistSelection()">
+<datalist id="folderOptions"></datalist>
+
+        
+        <!-- Wadah opsi dinamis yang akan diisi oleh Logika.html -->
+        <datalist id="folderOptions"></datalist>
+        
+        <label class="form-label" style="margin-top: 15px;">Folder Terpilih</label>
+        <div class="capsule-box" id="capsuleContainer">
+          <!-- Dinamis diatur oleh Logika.html -->
+        </div>
+        
+        <button class="btn-clear" onclick="clearAllCapsules()">Hapus Semua Pilihan</button>
+      </div>
+
+
+            <!-- TABEL DATA & LOG MONITOR -->
+      <div class="card-table">
+        <div class="table-header">
+          <div>
+            <h5>Riwayat Berkas Masuk</h5>
+            <!-- BARU: Indikator Ringkasan Total Dokumen Aktif -->
+            <div id="totalFilesBadge" style="margin-top: 4px; display: inline-block; background-color: #eff6ff; color: #1e40af; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 6px; border: 1px solid #bfdbfe;">
+              📊 Total: 0 Berkas
+            </div>
+          </div>
+          <div class="search-box-container">
+            <input type="text" id="searchFileName" class="form-control" placeholder="🔍 Cari nama file di sini..." onkeyup="processFilterChange()">
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th width="50">No</th>
+                <th width="160">Tanggal Unggah</th>
+                <th>Nama File</th>
+                <!-- BARU: Judul Kolom Ukuran File -->
+                <th width="100">Ukuran</th>
+                <th>Jalur Folder Tujuan</th>
+                <th width="200" style="text-align:center;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="logTableBody">
+              <tr>
+                <td colspan="6" style="text-align:center; color:#64748b; padding: 30px;">Sinkronisasi basis data cloud...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      
+
+        <!-- Pagination Controls -->
+        <div class="pagination-container">
+          <div class="pagination-info" id="paginationInfo">Menampilkan 0-0 dari 0 data</div>
+          <div class="pagination-nav">
+            <button class="page-btn" id="btnPrev" onclick="changePage(-1)">Sebelumnya</button>
+            <button class="page-btn" id="btnNext" onclick="changePage(1)">Berikutnya</button>
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+      <!-- Footer Tambahan -->
+    <footer class="site-footer">
+      IT Support Puskesmas Kedawung @<span id="currentYearDash"></span>
+    </footer>
+  </div>
+
+  <!-- Menyematkan Logika Pemrosesan -->
+  <?!= include('Logika'); ?>
+
+</body>
+</html>
